@@ -11,17 +11,32 @@ import (
 // App struct
 type App struct {
 	ctx         context.Context
-	oscillator  *ComplexOscillator
+	mixer       *DualOscillatorMixer
 	stream      *portaudio.Stream
 	mu          sync.Mutex
 	isStreaming bool
+	sweepManager1 *SweepManager
+	sweepManager2 *SweepManager
 }
 
 // NewApp initializes the app
 func NewApp() *App {
-	return &App{
-		oscillator: NewComplexOscillator(440.0, 1.0), // Default 440Hz, 1.0 scale factor (volume)
+	app := &App{
+		mixer: NewDualOscillatorMixer(440.0, 1.0, WaveformSine), // Default 440Hz, 1.0 volume, sine wave
 	}
+	
+	// Initialize sweep managers
+	app.sweepManager1 = NewSweepManager(
+		func(freq float64) { app.SetFrequency(freq) },
+		nil, // No update callback for now
+	)
+	
+	app.sweepManager2 = NewSweepManager(
+		func(freq float64) { app.SetOsc2Frequency(freq) },
+		nil, // No update callback for now
+	)
+	
+	return app
 }
 
 // startup initializes PortAudio
@@ -45,7 +60,7 @@ func (a *App) StartAudio() {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		for i := range out {
-			out[i] = float32(a.oscillator.Process()) // Generate sound
+			out[i] = float32(a.mixer.Process()) // Generate mixed sound
 		}
 	})
 	if err != nil {
@@ -79,11 +94,113 @@ func (a *App) StopAudio() {
 func (a *App) SetFrequency(freq float64) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.oscillator.SetFrequency(freq)
+	a.mixer.SetFrequency(freq)
 }
 
 func (a *App) SetVolume(scale float64) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.oscillator.SetVolume(scale)
+	a.mixer.SetVolume(scale)
+}
+
+func (a *App) SetWaveform(waveformType int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetWaveform(WaveformType(waveformType))
+}
+
+// New methods for dual oscillator control
+
+func (a *App) SetOsc2Frequency(freq float64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetOsc2Frequency(freq)
+}
+
+func (a *App) SetOsc2Volume(scale float64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetOsc2Volume(scale)
+}
+
+func (a *App) SetOsc2Waveform(waveformType int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetOsc2Waveform(WaveformType(waveformType))
+}
+
+func (a *App) SetMixBalance(balance float64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetMixBalance(balance)
+}
+
+func (a *App) SetMixMode(mode int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetMixMode(MixMode(mode))
+}
+
+func (a *App) SetDetune(cents float64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetDetune(cents)
+}
+
+func (a *App) SetSync(enabled bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mixer.SetSync(enabled)
+}
+
+// Getter methods for frontend state synchronization
+
+func (a *App) GetMixBalance() float64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.mixer.GetMixBalance()
+}
+
+func (a *App) GetMixMode() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return int(a.mixer.GetMixMode())
+}
+
+func (a *App) GetDetune() float64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.mixer.GetDetune()
+}
+
+func (a *App) GetSync() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.mixer.GetSync()
+}
+
+// Sweep methods for Oscillator 1
+func (a *App) StartSweep1(startFreq, endFreq, duration float64) {
+	a.sweepManager1.StartSweep(startFreq, endFreq, duration)
+}
+
+func (a *App) StopSweep1() {
+	a.sweepManager1.StopSweep()
+}
+
+func (a *App) IsSweeping1() bool {
+	return a.sweepManager1.IsSweeping()
+}
+
+// Sweep methods for Oscillator 2
+func (a *App) StartSweep2(startFreq, endFreq, duration float64) {
+	a.sweepManager2.StartSweep(startFreq, endFreq, duration)
+}
+
+func (a *App) StopSweep2() {
+	a.sweepManager2.StopSweep()
+}
+
+func (a *App) IsSweeping2() bool {
+	return a.sweepManager2.IsSweeping()
 }

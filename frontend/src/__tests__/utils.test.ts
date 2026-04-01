@@ -47,7 +47,7 @@ describe('Audio Utils', () => {
       const sliderPos = frequencyToSlider(440);
       expect(sliderPos).toBeGreaterThan(0);
       expect(sliderPos).toBeLessThan(1);
-      
+
       // Round trip test
       const backToFreq = sliderToFrequency(sliderPos);
       expect(backToFreq).toBeCloseTo(440, 1);
@@ -57,7 +57,7 @@ describe('Audio Utils', () => {
       // Test minimum
       const minSlider = frequencyToSlider(MIN_FREQ);
       expect(minSlider).toBeCloseTo(0, 5);
-      
+
       // Test maximum
       const maxSlider = frequencyToSlider(MAX_FREQ);
       expect(maxSlider).toBeCloseTo(1, 5);
@@ -67,7 +67,7 @@ describe('Audio Utils', () => {
       const freq1 = sliderToFrequency(0.25);
       const freq2 = sliderToFrequency(0.5);
       const freq3 = sliderToFrequency(0.75);
-      
+
       // In logarithmic scale, equal increments should multiply by same factor
       const ratio1 = freq2 / freq1;
       const ratio2 = freq3 / freq2;
@@ -99,13 +99,13 @@ describe('Audio Utils', () => {
     it('should handle dB to linear conversion', () => {
       // 0 dB should be 1.0 linear
       expect(dbToLinear(0)).toBeCloseTo(1.0, 5);
-      
+
       // -20 dB should be 0.1 linear
       expect(dbToLinear(-20)).toBeCloseTo(0.1, 5);
-      
+
       // -40 dB should be 0.01 linear
       expect(dbToLinear(-40)).toBeCloseTo(0.01, 5);
-      
+
       // Minimum dB should be 0 linear
       expect(dbToLinear(MIN_DB)).toBe(0);
     });
@@ -113,13 +113,13 @@ describe('Audio Utils', () => {
     it('should handle linear to dB conversion', () => {
       // 1.0 linear should be 0 dB
       expect(linearToDB(1.0)).toBeCloseTo(0, 5);
-      
+
       // 0.1 linear should be -20 dB
       expect(linearToDB(0.1)).toBeCloseTo(-20, 5);
-      
+
       // 0.01 linear should be -40 dB
       expect(linearToDB(0.01)).toBeCloseTo(-40, 5);
-      
+
       // Very small values should return MIN_DB
       expect(linearToDB(0.000001)).toBe(MIN_DB);
       expect(linearToDB(0)).toBe(MIN_DB);
@@ -127,7 +127,7 @@ describe('Audio Utils', () => {
 
     it('should maintain round-trip accuracy for dB conversions', () => {
       const testValues = [-10, -20, -30, -40, -50, -60];
-      
+
       testValues.forEach(db => {
         const linear = dbToLinear(db);
         const backToDB = linearToDB(linear);
@@ -165,16 +165,16 @@ describe('Audio Utils', () => {
     it('should handle complete frequency workflow', () => {
       // Start with a frequency
       const originalFreq = 880; // A5
-      
+
       // Convert to slider position
       const sliderPos = frequencyToSlider(originalFreq);
-      
+
       // Convert back to frequency
       const convertedFreq = sliderToFrequency(sliderPos);
-      
+
       // Should be very close to original
       expect(convertedFreq).toBeCloseTo(originalFreq, 1);
-      
+
       // Format should be correct
       const formatted = formatFrequency(convertedFreq);
       expect(formatted).toBe('880 Hz');
@@ -183,16 +183,16 @@ describe('Audio Utils', () => {
     it('should handle complete volume workflow', () => {
       // Start with a dB value
       const originalDB = -30;
-      
+
       // Convert to slider position
       const sliderPos = dbToSlider(originalDB);
-      
+
       // Convert back to dB
       const convertedDB = sliderToDB(sliderPos);
-      
+
       // Should be exact (linear relationship)
       expect(convertedDB).toBeCloseTo(originalDB, 10);
-      
+
       // Convert to linear and back
       const linear = dbToLinear(originalDB);
       const backToDB = linearToDB(linear);
@@ -205,15 +205,15 @@ describe('Audio Utils', () => {
       expect(() => sliderToFrequency(2)).not.toThrow();
       expect(() => frequencyToSlider(10)).not.toThrow();
       expect(() => frequencyToSlider(100000)).not.toThrow();
-      
+
       expect(() => sliderToDB(-1)).not.toThrow();
       expect(() => sliderToDB(2)).not.toThrow();
       expect(() => dbToSlider(-100)).not.toThrow();
       expect(() => dbToSlider(10)).not.toThrow();
-      
+
       expect(() => dbToLinear(-100)).not.toThrow();
       expect(() => linearToDB(2)).not.toThrow();
-      
+
       expect(() => formatFrequency(0.1)).not.toThrow();
       expect(() => formatFrequency(1000000)).not.toThrow();
     });
@@ -228,11 +228,11 @@ describe('Audio Utils', () => {
         { note: 'C8', freq: 4186.01 },
       ];
 
-      musicalFreqs.forEach(({ note, freq }) => {
+      musicalFreqs.forEach(({ freq }) => {
         const sliderPos = frequencyToSlider(freq);
         const backToFreq = sliderToFrequency(sliderPos);
         expect(backToFreq).toBeCloseTo(freq, 1);
-        
+
         const formatted = formatFrequency(freq);
         if (freq < 10000) {
           expect(formatted).toContain('Hz');
@@ -263,16 +263,16 @@ describe('Audio Utils', () => {
 
     it('should not produce NaN or infinite values', () => {
       const testSliders = [0, 0.25, 0.5, 0.75, 1.0];
-      
+
       testSliders.forEach(slider => {
         const freq = sliderToFrequency(slider);
         expect(Number.isFinite(freq)).toBe(true);
         expect(Number.isNaN(freq)).toBe(false);
-        
+
         const db = sliderToDB(slider);
         expect(Number.isFinite(db)).toBe(true);
         expect(Number.isNaN(db)).toBe(false);
-        
+
         const linear = dbToLinear(db);
         expect(Number.isFinite(linear)).toBe(true);
         expect(Number.isNaN(linear)).toBe(false);

@@ -1,485 +1,223 @@
-import { useState } from "react";
-import "./App.css";
-import {
-  SetFrequency,
-  SetVolume,
-  SetWaveform,
-  StartAudio,
-  StopAudio,
-  SetOsc2Frequency,
-  SetOsc2Volume,
-  SetOsc2Waveform,
-  SetMixBalance,
-  SetMixMode,
-  SetDetune,
-  SetSync,
-  StartSweep1,
-  StopSweep1,
-  IsSweeping1,
-  StartSweep2,
-  StopSweep2,
-  IsSweeping2,
-} from "../wailsjs/go/main/App"; // Import Wails functions
-import {
-  sliderToFrequency,
-  frequencyToSlider,
-  sliderToDB,
-  dbToSlider,
-  dbToLinear,
-  formatFrequency,
-  MIN_DB,
-} from "./utils"; // Import utilities
+/**
+ * Main Application Component with Zustand State Management
+ *
+ * This is the updated App component that uses our new Zustand-based state
+ * management system instead of individual custom hooks. This provides better
+ * performance, state persistence, and a more maintainable architecture.
+ */
 
-const SLIDER_MIN = 0;
-const SLIDER_MAX = 1000;
+import React from 'react';
+import { useAppStore } from './store';
+import { OscillatorPanel, MixerControls, PlaybackControls, WaveformVisualizer } from './components';
+import { sliderToFrequency } from './utils';
 
-const WAVEFORMS = [
-  { value: 0, label: "Sine", symbol: "~" },
-  { value: 1, label: "Square", symbol: "⊓" },
-  { value: 2, label: "Triangle", symbol: "△" },
-  { value: 3, label: "Sawtooth", symbol: "⟋" },
-  { value: 4, label: "White Noise", symbol: "◇" },
-  { value: 5, label: "Pink Noise", symbol: "◈" },
-  { value: 6, label: "Brown Noise", symbol: "◆" },
-];
+const App: React.FC = () => {
+  // Use Zustand store selectors for optimal performance
+  const audioState = useAppStore(state => state.audio);
+  const oscillator1 = useAppStore(state => state.oscillator1);
+  const oscillator2 = useAppStore(state => state.oscillator2);
+  const sweep1 = useAppStore(state => state.sweep1);
+  const sweep2 = useAppStore(state => state.sweep2);
+  const mixer = useAppStore(state => state.mixer);
 
-const MIX_MODES = [
-  { value: 0, label: "Add", description: "Linear mix" },
-  { value: 1, label: "Multiply", description: "Ring modulation with balance" },
-  { value: 2, label: "Ring Mod", description: "Pure ring modulation" },
-];
+  // Action selectors
+  const audioActions = useAppStore(state => state.audioActions);
+  const oscillatorActions = useAppStore(state => state.oscillatorActions);
+  const sweepActions = useAppStore(state => state.sweepActions);
+  const mixerActions = useAppStore(state => state.mixerActions);
 
-function App() {
-  // Oscillator 1 state
-  const [sliderFreq, setSliderFreq] = useState(
-    frequencyToSlider(440) * SLIDER_MAX
-  );
-  const [sliderVolume, setSliderVolume] = useState(dbToSlider(0) * SLIDER_MAX);
-  const [selectedWaveform, setSelectedWaveform] = useState(0);
-
-  // Oscillator 2 state
-  const [osc2SliderFreq, setOsc2SliderFreq] = useState(
-    frequencyToSlider(440) * SLIDER_MAX
-  );
-  const [osc2SliderVolume, setOsc2SliderVolume] = useState(dbToSlider(0) * SLIDER_MAX);
-  const [osc2SelectedWaveform, setOsc2SelectedWaveform] = useState(0);
-
-  // Mixer state
-  const [mixBalance, setMixBalance] = useState(0.5); // 0.0 = osc1 only, 1.0 = osc2 only
-  const [mixMode, setMixMode] = useState(0);
-  const [detune, setDetune] = useState(0); // -100 to +100 cents
-  const [syncEnabled, setSyncEnabled] = useState(false);
-
-  // App state
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  // Sweep state for Oscillator 1
-  const [sweep1StartFreq, setSweep1StartFreq] = useState(100); // 100Hz
-  const [sweep1EndFreq, setSweep1EndFreq] = useState(1000); // 1kHz
-  const [sweep1Duration, setSweep1Duration] = useState(5); // 5 seconds
-  const [isSweeping1, setIsSweeping1] = useState(false);
-
-  // Sweep state for Oscillator 2
-  const [sweep2StartFreq, setSweep2StartFreq] = useState(100); // 100Hz
-  const [sweep2EndFreq, setSweep2EndFreq] = useState(1000); // 1kHz
-  const [sweep2Duration, setSweep2Duration] = useState(5); // 5 seconds
-  const [isSweeping2, setIsSweeping2] = useState(false);
-
-  // Oscillator 1 handlers
-  const handleFrequencyChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const newSliderValue = parseFloat(event.target.value);
-    setSliderFreq(newSliderValue);
-    SetFrequency(sliderToFrequency(newSliderValue / SLIDER_MAX));
+  // Create adapters for component compatibility
+  const audioControls = {
+    state: audioState,
+    handlePlay: audioActions.startAudio,
+    handleStop: audioActions.stopAudio,
   };
 
-  const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newSliderValue = parseFloat(event.target.value);
-    setSliderVolume(newSliderValue);
-    SetVolume(dbToLinear(sliderToDB(newSliderValue / SLIDER_MAX)));
+  const osc1Controls = {
+    state: oscillator1,
+    handleFrequencyChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(event.target.value);
+      void oscillatorActions.setFrequency(1, value);
+    },
+    handleVolumeChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(event.target.value);
+      void oscillatorActions.setVolume(1, value);
+    },
+    handleWaveformChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = parseInt(event.target.value);
+      void oscillatorActions.setWaveform(1, value);
+    },
+    copyFrom: () => {
+      // Not used for oscillator 1
+    },
   };
 
-  const handleWaveformChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newWaveform = parseInt(event.target.value);
-    setSelectedWaveform(newWaveform);
-    SetWaveform(newWaveform);
+  const osc2Controls = {
+    state: oscillator2,
+    handleFrequencyChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(event.target.value);
+      void oscillatorActions.setFrequency(2, value);
+    },
+    handleVolumeChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(event.target.value);
+      void oscillatorActions.setVolume(2, value);
+    },
+    handleWaveformChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = parseInt(event.target.value);
+      void oscillatorActions.setWaveform(2, value);
+    },
+    copyFrom: (_sourceState: typeof oscillator1) => {
+      void oscillatorActions.copyOsc1ToOsc2();
+    },
   };
 
-  // Oscillator 2 handlers
-  const handleOsc2FrequencyChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const newSliderValue = parseFloat(event.target.value);
-    setOsc2SliderFreq(newSliderValue);
-    if (!syncEnabled) {
-      SetOsc2Frequency(sliderToFrequency(newSliderValue / SLIDER_MAX));
-    }
+  const sweep1Controls = {
+    state: {
+      startFreq: sweep1.startFreq,
+      endFreq: sweep1.endFreq,
+      duration: sweep1.duration,
+      isSweeping: sweep1.isActive,
+    },
+    setStartFreq: (freq: number) => {
+      sweepActions.updateSweepConfig(1, freq, sweep1.endFreq, sweep1.duration);
+    },
+    setEndFreq: (freq: number) => {
+      sweepActions.updateSweepConfig(1, sweep1.startFreq, freq, sweep1.duration);
+    },
+    setDuration: (duration: number) => {
+      sweepActions.updateSweepConfig(1, sweep1.startFreq, sweep1.endFreq, duration);
+    },
+    startSweep: () => {
+      void sweepActions.startSweep(1, sweep1.startFreq, sweep1.endFreq, sweep1.duration);
+    },
+    stopSweep: () => {
+      void sweepActions.stopSweep(1);
+    },
   };
 
-  const handleOsc2VolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newSliderValue = parseFloat(event.target.value);
-    setOsc2SliderVolume(newSliderValue);
-    SetOsc2Volume(dbToLinear(sliderToDB(newSliderValue / SLIDER_MAX)));
+  const sweep2Controls = {
+    state: {
+      startFreq: sweep2.startFreq,
+      endFreq: sweep2.endFreq,
+      duration: sweep2.duration,
+      isSweeping: sweep2.isActive,
+    },
+    setStartFreq: (freq: number) => {
+      sweepActions.updateSweepConfig(2, freq, sweep2.endFreq, sweep2.duration);
+    },
+    setEndFreq: (freq: number) => {
+      sweepActions.updateSweepConfig(2, sweep2.startFreq, freq, sweep2.duration);
+    },
+    setDuration: (duration: number) => {
+      sweepActions.updateSweepConfig(2, sweep2.startFreq, sweep2.endFreq, duration);
+    },
+    startSweep: () => {
+      void sweepActions.startSweep(2, sweep2.startFreq, sweep2.endFreq, sweep2.duration);
+    },
+    stopSweep: () => {
+      void sweepActions.stopSweep(2);
+    },
   };
 
-  const handleOsc2WaveformChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newWaveform = parseInt(event.target.value);
-    setOsc2SelectedWaveform(newWaveform);
-    SetOsc2Waveform(newWaveform);
+  const mixerControls = {
+    state: mixer,
+    handleMixBalanceChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(event.target.value) / 1000; // Convert from slider range
+      void mixerActions.setMixBalance(value);
+    },
+    handleMixModeChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = parseInt(event.target.value);
+      void mixerActions.setMixMode(value);
+    },
+    handleDetuneChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(event.target.value);
+      void mixerActions.setDetune(value);
+    },
+    handleSyncToggle: () => {
+      void mixerActions.toggleSync();
+    },
   };
 
-  // Mixer handlers
-  const handleMixBalanceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newBalance = parseFloat(event.target.value) / SLIDER_MAX;
-    setMixBalance(newBalance);
-    SetMixBalance(newBalance);
-  };
-
-  const handleMixModeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newMode = parseInt(event.target.value);
-    setMixMode(newMode);
-    SetMixMode(newMode);
-  };
-
-  const handleDetuneChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newDetune = parseFloat(event.target.value);
-    setDetune(newDetune);
-    SetDetune(newDetune);
-  };
-
-  const handleSyncToggle = () => {
-    const newSyncEnabled = !syncEnabled;
-    setSyncEnabled(newSyncEnabled);
-    SetSync(newSyncEnabled);
-  };
-
-  // Copy OSC1 settings to OSC2
+  // Handle copying OSC1 settings to OSC2
   const handleCopyOsc1ToOsc2 = () => {
-    setOsc2SliderFreq(sliderFreq);
-    setOsc2SliderVolume(sliderVolume);
-    setOsc2SelectedWaveform(selectedWaveform);
-    
-    if (!syncEnabled) {
-      SetOsc2Frequency(sliderToFrequency(sliderFreq / SLIDER_MAX));
-    }
-    SetOsc2Volume(dbToLinear(sliderToDB(sliderVolume / SLIDER_MAX)));
-    SetOsc2Waveform(selectedWaveform);
+    void oscillatorActions.copyOsc1ToOsc2();
   };
 
-  // Handle Play button
-  const handlePlay = () => {
-    StartAudio();
-    setIsPlaying(true);
-  };
-
-  // Handle Stop button
-  const handleStop = () => {
-    StopAudio();
-    setIsPlaying(false);
-  };
-
-  // Sweep 1 handlers
-  const handleStartSweep1 = () => {
-    StartSweep1(sweep1StartFreq, sweep1EndFreq, sweep1Duration);
-    setIsSweeping1(true);
-  };
-
-  const handleStopSweep1 = () => {
-    StopSweep1();
-    setIsSweeping1(false);
-  };
-
-  // Sweep 2 handlers
-  const handleStartSweep2 = () => {
-    StartSweep2(sweep2StartFreq, sweep2EndFreq, sweep2Duration);
-    setIsSweeping2(true);
-  };
-
-  const handleStopSweep2 = () => {
-    StopSweep2();
-    setIsSweeping2(false);
-  };
-
-  const renderSweepControls = (
-    isOsc1: boolean,
-    startFreq: number,
-    endFreq: number,
-    duration: number,
-    isSweeping: boolean,
-    onStartFreqChange: (freq: number) => void,
-    onEndFreqChange: (freq: number) => void,
-    onDurationChange: (dur: number) => void,
-    onStartSweep: () => void,
-    onStopSweep: () => void
-  ) => (
-    <div className="sweep-controls">
-      <h4>🔀 Frequency Sweep</h4>
-      <div className="sweep-settings">
-        <div className="sweep-input-group">
-          <label>Start Freq (Hz)</label>
-          <input
-            type="number"
-            min="20"
-            max="20000"
-            value={startFreq}
-            onChange={(e) => onStartFreqChange(parseFloat(e.target.value))}
-            disabled={isSweeping}
-          />
-        </div>
-        <div className="sweep-input-group">
-          <label>End Freq (Hz)</label>
-          <input
-            type="number"
-            min="20"
-            max="20000"
-            value={endFreq}
-            onChange={(e) => onEndFreqChange(parseFloat(e.target.value))}
-            disabled={isSweeping}
-          />
-        </div>
-        <div className="sweep-input-group">
-          <label>Duration (s)</label>
-          <input
-            type="number"
-            min="0.1"
-            max="60"
-            step="0.1"
-            value={duration}
-            onChange={(e) => onDurationChange(parseFloat(e.target.value))}
-            disabled={isSweeping}
-          />
-        </div>
-      </div>
+  // Display error messages if any
+  const errorDisplay = audioState.error && (
+    <div className="bg-red-50 text-red-700 p-2 m-2 rounded border border-red-200 flex items-center justify-between">
+      <span>Error: {audioState.error}</span>
       <button
-        className={`btn ${isSweeping ? 'stop-btn' : 'sweep-btn'}`}
-        onClick={isSweeping ? onStopSweep : onStartSweep}
-        style={{ marginTop: '10px' }}
+        onClick={() => audioActions.setError(null)}
+        className="ml-2 text-xs bg-red-200 hover:bg-red-300 text-red-800 px-2 py-1 rounded transition-colors duration-200"
       >
-        {isSweeping ? '⏹ Stop Sweep' : '🔀 Start Sweep'}
+        ×
       </button>
     </div>
   );
 
-  const renderOscillatorControls = (
-    isOsc1: boolean,
-    waveform: number,
-    sliderFreqValue: number,
-    sliderVolumeValue: number,
-    onWaveformChange: (event: React.ChangeEvent<HTMLSelectElement>) => void,
-    onFrequencyChange: (event: React.ChangeEvent<HTMLInputElement>) => void,
-    onVolumeChange: (event: React.ChangeEvent<HTMLInputElement>) => void
-  ) => (
-    <>
-      <div className="waveform-container">
-        <select
-          value={waveform}
-          onChange={onWaveformChange}
-          className="waveform-selector"
-        >
-          {WAVEFORMS.map((waveformOption) => (
-            <option key={waveformOption.value} value={waveformOption.value}>
-              {waveformOption.symbol} {waveformOption.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {waveform < 4 && (
-        <>
-          <p>Frequency:</p>
-          <div className="slider-container">
-            <input
-              type="range"
-              min={SLIDER_MIN}
-              max={SLIDER_MAX}
-              value={sliderFreqValue}
-              onChange={onFrequencyChange}
-              step="1"
-              className="slider"
-              disabled={!isOsc1 && syncEnabled}
-            />
-            <span className="frequency-display">
-              {formatFrequency(sliderToFrequency(sliderFreqValue / SLIDER_MAX))}
-            </span>
-          </div>
-        </>
-      )}
-      
-      {waveform >= 4 && (
-        <p className="noise-info">
-          Random signal across all frequencies
-        </p>
-      )}
-
-      <p>Volume:</p>
-      <div className="slider-container">
-        <input
-          type="range"
-          min={SLIDER_MIN}
-          max={SLIDER_MAX}
-          value={sliderVolumeValue}
-          onChange={onVolumeChange}
-          step="1"
-          className="slider"
-        />
-        <span className="volume-display">
-          {sliderToDB(sliderVolumeValue / SLIDER_MAX) === MIN_DB
-            ? "−∞"
-            : `${sliderToDB(sliderVolumeValue / SLIDER_MAX).toFixed(1)} dB`}
-        </span>
-      </div>
-    </>
-  );
-
   return (
-    <div id="App">
-      <h1>Dual Oscillator Audio Generator 🎶</h1>
-
-      <div className="dual-oscillator-container">
-        <div className="oscillator-panel osc1">
-          <h3>Oscillator 1</h3>
-          {renderOscillatorControls(
-            true,
-            selectedWaveform,
-            sliderFreq,
-            sliderVolume,
-            handleWaveformChange,
-            handleFrequencyChange,
-            handleVolumeChange
-          )}
-          {selectedWaveform < 4 && renderSweepControls(
-            true,
-            sweep1StartFreq,
-            sweep1EndFreq,
-            sweep1Duration,
-            isSweeping1,
-            setSweep1StartFreq,
-            setSweep1EndFreq,
-            setSweep1Duration,
-            handleStartSweep1,
-            handleStopSweep1
-          )}
-        </div>
-
-        <div className="oscillator-panel osc2">
-          <h3>Oscillator 2</h3>
-          <button 
-            className="btn" 
-            onClick={handleCopyOsc1ToOsc2}
-            style={{ marginBottom: '10px', fontSize: '12px' }}
-          >
-            📋 Copy OSC1
-          </button>
-          {renderOscillatorControls(
-            false,
-            osc2SelectedWaveform,
-            osc2SliderFreq,
-            osc2SliderVolume,
-            handleOsc2WaveformChange,
-            handleOsc2FrequencyChange,
-            handleOsc2VolumeChange
-          )}
-          {osc2SelectedWaveform < 4 && !syncEnabled && renderSweepControls(
-            false,
-            sweep2StartFreq,
-            sweep2EndFreq,
-            sweep2Duration,
-            isSweeping2,
-            setSweep2StartFreq,
-            setSweep2EndFreq,
-            setSweep2Duration,
-            handleStartSweep2,
-            handleStopSweep2
-          )}
-        </div>
-      </div>
-
-      <div className="mixer-section">
-        <h3>⚡ Mixer & Modulation</h3>
-        <div className="mixer-controls">
-          <div className="control-group">
-            <label>Mix Balance</label>
-            <input
-              type="range"
-              min={SLIDER_MIN}
-              max={SLIDER_MAX}
-              value={mixBalance * SLIDER_MAX}
-              onChange={handleMixBalanceChange}
-              step="1"
-              className="slider"
-            />
-            <span className="balance-display">
-              {mixBalance === 0 ? "OSC1 Only" : 
-               mixBalance === 1 ? "OSC2 Only" : 
-               `${(mixBalance * 100).toFixed(0)}% OSC2`}
+    <div className="min-h-screen bg-studio-black text-studio-white p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto relative">
+        <div className="text-center mb-8 sm:mb-12 relative">
+          <h1 className="main-title text-3xl sm:text-4xl lg:text-5xl font-bold font-futura mb-4 animate-slide-down">
+            <span className="bg-gradient-to-r from-neon-cyan via-neon-blue to-neon-pink bg-clip-text text-transparent animate-neon-pulse">
+              AUDIO FREQUENCY
             </span>
-          </div>
-
-          <div className="control-group">
-            <label>Mix Mode</label>
-            <select
-              value={mixMode}
-              onChange={handleMixModeChange}
-              className="mix-mode-selector"
-            >
-              {MIX_MODES.map((mode) => (
-                <option key={mode.value} value={mode.value}>
-                  {mode.label}
-                </option>
-              ))}
-            </select>
-            <span style={{ fontSize: '12px', color: '#666' }}>
-              {MIX_MODES[mixMode].description}
-            </span>
-          </div>
-
-          <div className="control-group">
-            <label>Sync</label>
-            <button
-              className={`sync-button ${syncEnabled ? 'active' : ''}`}
-              onClick={handleSyncToggle}
-            >
-              {syncEnabled ? '🔗 Synced' : '🔓 Free'}
-            </button>
-            <span style={{ fontSize: '12px', color: '#666' }}>
-              {syncEnabled ? 'OSC2 follows OSC1' : 'Independent control'}
-            </span>
-          </div>
-
-          <div className="control-group">
-            <label>Detune (cents)</label>
-            <input
-              type="range"
-              min={-100}
-              max={100}
-              value={detune}
-              onChange={handleDetuneChange}
-              step="1"
-              className="slider"
-              disabled={!syncEnabled}
-            />
-            <span className="detune-display">
-              {detune === 0 ? "±0¢" : 
-               detune > 0 ? `+${detune}¢` : `${detune}¢`}
-            </span>
+          </h1>
+          <h2 className="main-subtitle text-lg sm:text-xl lg:text-2xl font-futura text-studio-dark-200 tracking-widest">
+            GENERATOR
+          </h2>
+          <div className="absolute inset-0 -z-10 blur-3xl">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-32 bg-gradient-to-r from-neon-cyan/20 to-neon-blue/20 animate-float"></div>
           </div>
         </div>
-      </div>
 
-      <div className="button-container">
-        {!isPlaying ? (
-          <button className="btn play-btn" onClick={handlePlay}>
-            ▶ Play
-          </button>
-        ) : (
-          <button className="btn stop-btn" onClick={handleStop}>
-            ⏹ Stop
-          </button>
-        )}
+        {errorDisplay}
+
+        {/* Waveform Visualizer Section */}
+        <div className="mb-8 flex justify-center">
+          <WaveformVisualizer
+            frequency={sliderToFrequency(oscillator1.sliderFreq)}
+            isPlaying={audioState.isPlaying}
+            waveformType={oscillator1.selectedWaveform}
+            className="w-full max-w-2xl"
+          />
+        </div>
+
+        <div className="dual-oscillator-container">
+          <OscillatorPanel
+            title="Oscillator 1"
+            oscillator={osc1Controls}
+            sweepControls={sweep1Controls}
+            syncEnabled={mixer.syncEnabled}
+            isOsc2={false}
+            className="osc1"
+            controlMode={oscillator1.controlMode}
+            onControlModeChange={mode => oscillatorActions.setControlMode(1, mode)}
+            isSweepActive={sweep1.isActive}
+          />
+
+          <OscillatorPanel
+            title="Oscillator 2"
+            oscillator={osc2Controls}
+            sweepControls={sweep2Controls}
+            syncEnabled={mixer.syncEnabled}
+            isOsc2={true}
+            onCopyFromOsc1={handleCopyOsc1ToOsc2}
+            className="osc2"
+            controlMode={oscillator2.controlMode}
+            onControlModeChange={mode => oscillatorActions.setControlMode(2, mode)}
+            isSweepActive={sweep2.isActive}
+          />
+        </div>
+
+        <MixerControls mixerControls={mixerControls} />
+
+        <PlaybackControls audioControls={audioControls} />
       </div>
     </div>
   );
-}
+};
 
 export default App;

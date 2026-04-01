@@ -1,12 +1,16 @@
-// Frequency range (logarithmic mapping)
-export const MIN_FREQ = 20; // 20 Hz
-export const MAX_FREQ = 20000; // 20 kHz
+/** Minimum frequency in Hz (20 Hz) */
+export const MIN_FREQ = 20;
 
-// Compute scale factor dynamically
+/** Maximum frequency in Hz (20 kHz) */
+export const MAX_FREQ = 20000;
+
+/** Scale factor for logarithmic frequency mapping */
 export const SCALE_FACTOR = 1.0 / Math.log10(MAX_FREQ / MIN_FREQ);
 
-// Volume range (dB)
+/** Minimum volume in dB (-80 dB) */
 export const MIN_DB = -80;
+
+/** Maximum volume in dB (0 dB) */
 export const MAX_DB = 0;
 
 /**
@@ -59,7 +63,5 @@ export const linearToDB = (linear: number): number => {
  * - Uses kHz above 10,000 Hz
  */
 export const formatFrequency = (freq: number): string => {
-  return freq >= 10000
-    ? `${(freq / 1000).toFixed(1)} kHz`
-    : `${Math.round(freq)} Hz`;
+  return freq >= 10000 ? `${(freq / 1000).toFixed(1)} kHz` : `${Math.round(freq)} Hz`;
 };

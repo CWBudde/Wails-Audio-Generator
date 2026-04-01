@@ -1,0 +1,7 @@
+dist/
+node_modules/
+wailsjs/
+*.md
+package-lock.json
+*.min.js
+*.min.css
